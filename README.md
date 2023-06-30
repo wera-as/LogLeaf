@@ -1,6 +1,6 @@
 # File Download Logger
 
-The File Download Logger is a robust and adaptable PHP class designed for logging file downloads to either a text file or a CSV file. The class creates timestamped entries for each download event and is capable of returning all log data in a structured format for potential data analysis purposes.
+The File Download Logger is a robust and adaptable PHP class designed for logging file downloads to either a text file or a CSV file. The class creates timestamped entries for each download event and is capable of returning all log data in a structured format for potential data analysis purposes. It provides support for PHP 5.6 and PHP 7.0+.
 ## Features
 
 - Set custom log file path
@@ -12,42 +12,60 @@ The File Download Logger is a robust and adaptable PHP class designed for loggin
 
 ## Requirements
 
-- PHP 7.0 or higher
+- PHP 5.6 or higher
 
 ## Installation
 
-Simply clone this repository or download the Logger.php file and include it in your PHP project:
+Simply clone this repository or download the appropriate Logger file (`logger56.php` for PHP 5.6, `logger.php` for PHP 7.0+) and include it in your PHP project:
 ```bash
 git clone https://github.com/username/file-download-logger.git
 ```
 
 And include it in your PHP script:
+
+For PHP 5.6
+
 ```php
-include_once 'Logger.php';
+php
+include_once 'logger56.php';
+```
+
+For PHP 7.0+
+
+```php
+php
+include_once 'logger.php';
 ```
 
 ## Usage
 
 First, you need to instantiate the Logger class with the name of your log file, file type, and optionally the timestamp format and CSV columns:
+
 ```php
+php
 $logger = new Logger("downloads.log", 'txt');
-$csvLogger = new Logger('downloads.csv', 'csv', 'Y-m-d H:i:s', ['Timestamp', 'Column1', 'Column2']);
+$csvLogger = new Logger('downloads.csv', 'csv', 'Y-m-d H:i:s', array('Timestamp', 'Column1', 'Column2'));
 ```
 
 If you wish to use a custom timestamp format, you can set it using the `setTimestampFormat` method:
 
 ```php
+php
 $logger->setTimestampFormat('Y-m-d H:i:s'); // Set timestamp format (optional, 'Y-m-d H:i:s' is the default)
 ```
 
 When a file is downloaded, add an entry to the log file using the `putLog` method. If you're logging to a CSV file, pass an array of data that matches the CSV columns you've specified:
+
 ```php
+php
 $logger->putLog('File abc.jpg has been downloaded'); // Add a new entry
-$csvLogger->putLog(['File abc.jpg', 'download data 1', 'download data 2']); // Add a new entry to CSV file
+$csvLogger->putLog(array('File abc.jpg', 'download data 1', 'download data 2')); // Add a new entry to CSV file
 ```
 
-If you want to retrieve all the logs as a string, you can use the `getLo`g method:
+If you want to retrieve all the logs as a string, you can use the `getLog` method:
+
 ```php
+php
 echo $logger->getLog(); // Output all logs
 ```
 
