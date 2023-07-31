@@ -1,86 +1,84 @@
 # File Download Logger
 
-The File Download Logger is a robust and adaptable PHP class designed for logging file downloads to either a text file or a CSV file. The class creates timestamped entries for each download event and is capable of returning all log data in a structured format for potential data analysis purposes. It provides support for PHP 5.6 and PHP 7.0+.
+The File Download Logger is a powerful and adaptable PHP class that enables you to log file download events to either a text (.txt) file or a comma-separated value (.csv) file. With each download event, the Logger generates a timestamped entry. It's also capable of retrieving the entire log data in a structured format for subsequent data analysis or auditing purposes. The Logger supports PHP 5.6 and onwards.
+
 ## Features
 
-- Set custom log file path
-- Choose between logging to a text file or a CSV file
-- Define custom timestamp formats
-- Append new log entries with timestamps
-- Retrieve all log entries
-- Specify CSV columns if logging to a CSV file
+- Customize the log file path as per your needs.
+- Choose to log to a text (.txt) or a CSV (.csv) file.
+- Set a custom timestamp format to suit your application's requirements.
+- Append new log entries with accurate timestamps for chronological order.
+- Retrieve the complete log entries for review or analysis.
+- Define custom CSV column names when logging to a CSV file.
 
 ## Requirements
 
-- PHP 5.6 or higher
+- PHP 5.6 or higher.
 
 ## Installation
 
-Simply clone this repository or download the appropriate Logger file (`logger56.php` for PHP 5.6, `logger.php` for PHP 7.0+) and include it in your PHP project:
+To install the File Download Logger, clone this repository or download the Logger file (`logger56.php` for PHP 5.6, `logger.php` for PHP 7.0+) and include it in your PHP project:
+
 ```bash
 git clone https://github.com/username/file-download-logger.git
 ```
 
-And include it in your PHP script:
+Then, include the Logger file in your PHP script:
 
-For PHP 5.6
+For PHP 5.6:
 
 ```php
-php
 include_once 'logger56.php';
 ```
 
-For PHP 7.0+
+For PHP 7.0+:
 
 ```php
-php
 include_once 'logger.php';
 ```
 
 ## Usage
 
-First, you need to instantiate the Logger class with the name of your log file, file type, and optionally the timestamp format and CSV columns:
+First, instantiate the Logger class with your log file's name, the file type (either 'txt' or 'csv'), and optionally, your preferred timestamp format and CSV columns:
 
 ```php
-php
 $logger = new Logger("downloads.log", 'txt');
-$csvLogger = new Logger('downloads.csv', 'csv', 'Y-m-d H:i:s', array('Timestamp', 'Column1', 'Column2'));
+
+$csvColumns = ['Timestamp', 'File Name', 'Additional Info'];
+$csvLogger = new Logger('downloads.csv', 'csv', 'Y-m-d H:i:s', $csvColumns);
 ```
 
-If you wish to use a custom timestamp format, you can set it using the `setTimestampFormat` method:
+If you need a custom timestamp format, set it using the `setTimestampFormat` method:
 
 ```php
-php
-$logger->setTimestampFormat('Y-m-d H:i:s'); // Set timestamp format (optional, 'Y-m-d H:i:s' is the default)
+$logger->setTimestampFormat('Y-m-d H:i:s'); // Optional, 'Y-m-d H:i:s' is the default
 ```
 
-When a file is downloaded, add an entry to the log file using the `putLog` method. If you're logging to a CSV file, pass an array of data that matches the CSV columns you've specified:
+When a file is downloaded, log an entry using the `putLog` method. If you're logging to a CSV file, pass an array of data that matches the CSV columns:
 
 ```php
-php
 $logger->putLog('File abc.jpg has been downloaded'); // Add a new entry
-$csvLogger->putLog(array('File abc.jpg', 'download data 1', 'download data 2')); // Add a new entry to CSV file
+$csvLogger->putLog(['2023-05-20 14:54:21', 'File abc.jpg', 'Additional download data']); // Add a new entry to CSV file
 ```
 
-If you want to retrieve all the logs as a string, you can use the `getLog` method:
+To retrieve all the logs as a string, use the `getLog` method:
 
 ```php
-php
 echo $logger->getLog(); // Output all logs
 ```
 
 ## Errors and Exceptions
 
-The Logger class will throw an exception in the following cases:
+The Logger class will throw an exception in the following scenarios:
 
 - If the log file cannot be read or written to.
-- If you attempt to set an empty file name.
-- If a CSV column doesn't match with the corresponding data in `putLog` method.
+- If an empty file name is provided.
+- If the data provided in the `putLog` method doesn't match the specified CSV columns.
 
 ## Contributing
 
-Feel free to fork the project and submit your contributions via a pull request.
+Contributions are welcome! Please feel free to fork this project and submit your enhancements via a pull request.
 
 ## License
 
-The File Download Logger is open-sourced software licensed under the MIT license.
+The File Download Logger is open-source software licensed under the MIT license.
