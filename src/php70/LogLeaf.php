@@ -3,8 +3,13 @@
 /** 
  * Logger class for handling different file types.
  */
-class Logger
+class LogLeaf
 {
+    const ROTATE_DAY        =   'Monday';   // Rotate logs every Monday
+    const LOG_PREFIX        =   'Week';     // Prefix for log names
+    const MAX_LOG_DURATION  =   3 * 4;      // Keep logs for 3 months (assuming 4 weeks per month)
+    const MAX_LOG_SIZE      =   26214400;   // 25 MB in bytes
+
     /**
      * @var string File name
      */
@@ -41,15 +46,20 @@ class Logger
     private $browserDetectPath;
 
     /**
+     * @var int Week of the last rotation.
+     */
+    private $lastRotationWeek;
+
+    /**
      * @var array Custom error messages
      */
-    private $errorMessages = array(
-        'emptyFilename' => 'Filename cannot be empty.',
-        'writeFailed' => 'Failed to write to log file %s',
-        'readFailed' => 'Failed to read log file %s',
-        'browserDetectionFailed' => 'Error: Browser detection failed',
-        'osDetectionFailed' => 'Error: OS detection failed'
-    );
+    private $errorMessages = [
+        'emptyFilename'             =>  'Filename cannot be empty.',
+        'writeFailed'               =>  'Failed to write to log file %s',
+        'readFailed'                =>  'Failed to read log file %s',
+        'browserDetectionFailed'    =>  'Error: Browser detection failed',
+        'osDetectionFailed'         =>  'Error: OS detection failed'
+    ];
 
     /**
      * Logger constructor.
@@ -65,7 +75,7 @@ class Logger
      * @param string $browserDetectPath     Path to Browser library (optional)
      * @throws InvalidArgumentException If the file name is empty
      */
-    public function __construct($filename, $fileType, $timestampFormat = 'Y-m-d H:i:s', $csvColumns = array(), $logIP = false, $logBrowserOS = false, $useAdvancedDetection = false, $mobileDetectPath = '', $browserDetectPath = '')
+    public function __construct($filename, $fileType, $timestampFormat = 'Y-m-d H:i:s', $csvColumns = [], $logIP = false, $logBrowserOS = false, $useAdvancedDetection = false, $mobileDetectPath = '', $browserDetectPath = '')
     {
         if (empty($filename)) {
             throw new InvalidArgumentException($this->errorMessages['emptyFilename']);
@@ -82,6 +92,7 @@ class Logger
         $this->useAdvancedDetection = $useAdvancedDetection;
         $this->mobileDetectPath = $mobileDetectPath;
         $this->browserDetectPath = $browserDetectPath;
+        $this->lastRotationWeek = (int) date('W');
 
         if ($logIP) {
             $this->csvColumns[] = "IP";
@@ -130,15 +141,18 @@ class Logger
      */
     public function putLog($insert)
     {
+        $this->rotateLogs();
+        $this->cleanupOldLogs();
+
         $timestamp = date($this->timestampFormat);
         if (!is_array($insert)) {
-            $insert = array($insert);
+            $insert = [$insert];
         }
 
-        $logData = array($timestamp);
+        $logData = [$timestamp];
 
         if (in_array("IP", $this->csvColumns)) {
-            $logData[] = $_SERVER['REMOTE_ADDR'];
+            $logData[] = $this->getClientIP();
         }
 
         if (in_array("Browser", $this->csvColumns) && in_array("OS", $this->csvColumns)) {
@@ -251,6 +265,105 @@ class Logger
             } else {
                 return 'Others';
             }
+        }
+    }
+
+    /**
+     * Retrieves the client's IP address.
+     * 
+     * Tries to obtain the IP address from various headers set by proxies and load balancers.
+     * If none are found, it falls back to $_SERVER['REMOTE_ADDR'].
+     * 
+     * @return string Client's IP address. Returns 'UNKNOWN' if the IP cannot be determined.
+     */
+    function getClientIP()
+    {
+        $ipaddress = '';
+
+        if (isset($_SERVER['HTTP_CLIENT_IP'])) {
+            $ipaddress = $_SERVER['HTTP_CLIENT_IP'];
+        } else if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $ipaddress = $_SERVER['HTTP_X_FORWARDED_FOR'];
+        } else if (isset($_SERVER['HTTP_X_FORWARDED'])) {
+            $ipaddress = $_SERVER['HTTP_X_FORWARDED'];
+        } else if (isset($_SERVER['HTTP_X_CLUSTER_CLIENT_IP'])) {
+            $ipaddress = $_SERVER['HTTP_X_CLUSTER_CLIENT_IP'];
+        } else if (isset($_SERVER['HTTP_FORWARDED_FOR'])) {
+            $ipaddress = $_SERVER['HTTP_FORWARDED_FOR'];
+        } else if (isset($_SERVER['HTTP_FORWARDED'])) {
+            $ipaddress = $_SERVER['HTTP_FORWARDED'];
+        } else if (isset($_SERVER['REMOTE_ADDR'])) {
+            $ipaddress = $_SERVER['REMOTE_ADDR'];
+        } else {
+            $ipaddress = 'UNKNOWN';
+        }
+
+        // To handle cases where multiple IPs are returned
+        $ip_list = explode(',', $ipaddress);
+        $ipaddress = trim(end($ip_list));
+
+        return $ipaddress;
+    }
+
+    /**
+     * Rotates the logs based on the criteria mentioned.
+     */
+    private function rotateLogs()
+    {
+        $currentWeek = (int) date('W');
+        $currentYear = date('Y');
+        $baseLogName = $this->file . ' ' . self::LOG_PREFIX . ' ' . $currentWeek . ' ' . $currentYear;
+
+        // Check if we need to rotate based on the week or size
+        if ($this->lastRotationWeek !== $currentWeek || (filesize($this->file) >= self::MAX_LOG_SIZE && $this->lastRotationWeek === $currentWeek)) {
+            $logName = $this->getNextLogFilename($baseLogName);
+
+            rename($this->file, $logName);
+            touch($this->file);
+
+            // If CSV, write the header again
+            if ($this->fileType === 'csv' && !empty($this->csvColumns)) {
+                $file = fopen($this->file, 'a');
+                fputcsv($file, $this->csvColumns);
+                fclose($file);
+            }
+
+            $this->lastRotationWeek = $currentWeek;
+        }
+    }
+
+    /**
+     * Get the next available log filename based on the base log name.
+     * 
+     * @param string $baseLogName Base log name
+     * @return string Next available log filename
+     */
+    private function getNextLogFilename($baseLogName)
+    {
+        $counter = 1;
+        $logName = $baseLogName . ' ' . $counter;
+
+        while (file_exists($logName)) {
+            $counter++;
+            $logName = $baseLogName . ' ' . $counter;
+        }
+        return $logName;
+    }
+
+    /**
+     * Cleanup old logs based on the criteria mentioned.
+     */
+    private function cleanupOldLogs()
+    {
+        $logFiles = glob($this->file . ' ' . self::LOG_PREFIX . '*');
+        usort($logFiles, function ($a, $b) {
+            return filemtime($a) < filemtime($b);
+        });
+
+
+        while (count($logFiles) > self::MAX_LOG_DURATION) {
+            $fileToDelete = array_pop($logFiles);
+            unlink($fileToDelete);
         }
     }
 }
