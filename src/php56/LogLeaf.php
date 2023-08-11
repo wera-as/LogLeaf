@@ -31,21 +31,6 @@ class LogLeaf
     private $csvColumns;
 
     /**
-     * @var bool Use advanced detection method
-     */
-    private $useAdvancedDetection;
-
-    /**
-     * @var string Path to Mobile_Detect library
-     */
-    private $mobileDetectPath;
-
-    /**
-     * @var string Path to Browser library
-     */
-    private $browserDetectPath;
-
-    /**
      * @var int Week of the last rotation.
      */
     private $lastRotationWeek;
@@ -75,7 +60,7 @@ class LogLeaf
      * @param string $browserDetectPath     Path to Browser library (optional)
      * @throws InvalidArgumentException If the file name is empty
      */
-    public function __construct($filename, $fileType, $timestampFormat = 'Y-m-d H:i:s', $csvColumns = array(), $logIP = false, $logBrowserOS = false, $useAdvancedDetection = false, $mobileDetectPath = '', $browserDetectPath = '')
+    public function __construct($filename, $fileType, $timestampFormat = 'Y-m-d H:i:s', $csvColumns = array(), $logIP = false, $logBrowserOS = false)
     {
         if (empty($filename)) {
             throw new InvalidArgumentException($this->errorMessages['emptyFilename']);
@@ -89,9 +74,6 @@ class LogLeaf
         $this->timestampFormat = $timestampFormat;
         $this->fileType = $fileType;
         $this->csvColumns = $csvColumns;
-        $this->useAdvancedDetection = $useAdvancedDetection;
-        $this->mobileDetectPath = $mobileDetectPath;
-        $this->browserDetectPath = $browserDetectPath;
         $this->lastRotationWeek = (int) date('W');
 
         if ($logIP) {
@@ -211,28 +193,16 @@ class LogLeaf
      */
     private function getBrowser($user_agent)
     {
-        if ($this->useAdvancedDetection && file_exists($this->browserDetectPath)) {
-            include_once $this->browserDetectPath;
-            $browser = new Browser($user_agent);
-            $detectedBrowser = $browser->getBrowser();
-            if ($detectedBrowser) {
-                return $detectedBrowser;
-            } else {
-                return $this->errorMessages['browserDetectionFailed'];
-            }
+        if (strpos($user_agent, 'Firefox') !== false) {
+            return 'Firefox';
+        } elseif (strpos($user_agent, 'Chrome') !== false) {
+            return 'Chrome';
+        } elseif (strpos($user_agent, 'Safari') !== false) {
+            return 'Safari';
+        } elseif (strpos($user_agent, 'MSIE') !== false || strpos($user_agent, 'Trident') !== false) {
+            return 'Internet Explorer';
         } else {
-            // Fallback to basic in-house method
-            if (strpos($user_agent, 'Firefox') !== false) {
-                return 'Firefox';
-            } elseif (strpos($user_agent, 'Chrome') !== false) {
-                return 'Chrome';
-            } elseif (strpos($user_agent, 'Safari') !== false) {
-                return 'Safari';
-            } elseif (strpos($user_agent, 'MSIE') !== false || strpos($user_agent, 'Trident') !== false) {
-                return 'Internet Explorer';
-            } else {
-                return 'Others';
-            }
+            return 'Others';
         }
     }
 
@@ -244,29 +214,18 @@ class LogLeaf
      */
     private function getOS($user_agent)
     {
-        if ($this->useAdvancedDetection && file_exists($this->mobileDetectPath)) {
-            include_once $this->mobileDetectPath;
-            $detect = new Mobile_Detect();
-            $detectedOS = $detect->getOperatingSystem();
-            if ($detectedOS) {
-                return $detectedOS;
-            } else {
-                return $this->errorMessages['osDetectionFailed'];
-            }
+        if (strpos($user_agent, 'Windows NT') !== false) {
+            return 'Windows';
+        } elseif (strpos($user_agent, 'Mac OS X') !== false) {
+            return 'MacOS';
+        } elseif (strpos($user_agent, 'Linux') !== false) {
+            return 'Linux';
+        } elseif (strpos($user_agent, 'iPhone') !== false || strpos($user_agent, 'iPad') !== false) {
+            return 'iOS';
+        } elseif (strpos($user_agent, 'Android') !== false) {
+            return 'Android';
         } else {
-            if (strpos($user_agent, 'Windows NT') !== false) {
-                return 'Windows';
-            } elseif (strpos($user_agent, 'Mac OS X') !== false) {
-                return 'MacOS';
-            } elseif (strpos($user_agent, 'Linux') !== false) {
-                return 'Linux';
-            } elseif (strpos($user_agent, 'iPhone') !== false || strpos($user_agent, 'iPad') !== false) {
-                return 'iOS';
-            } elseif (strpos($user_agent, 'Android') !== false) {
-                return 'Android';
-            } else {
-                return 'Others';
-            }
+            return 'Others';
         }
     }
 

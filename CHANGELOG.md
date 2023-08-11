@@ -2,6 +2,16 @@
 
 
 
+## Version 1.5 (August 11, 2023)
+### Removed
+
+- Removed the inclusion of external libraries as they are not needed.
+
+
+
+
+
+
 ## Version 1.4.2 (August 11, 2023)
 ### Optimized
 
@@ -14,6 +24,8 @@
 - Addressed an issue where the timestamp was being duplicated in log entries.
   
   
+
+
 
 
   ## Version 1.4.1 (August 11, 2023)

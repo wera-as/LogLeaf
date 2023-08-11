@@ -14,15 +14,11 @@ LogLeaf is a versatile and adaptable PHP class designed to log file download eve
 - Define custom CSV column names when logging to a CSV file.
 - Optionally log IP addresses of users downloading files using an improved IP detection mechanism that accounts for proxies and load balancers.
 - Capture browser and operating system details for each download event.
-- Choose between basic (in-house) and advanced (using external libraries) detection methods.
 - Define custom error messages for specific scenarios to better suit your application's requirements.
 
 ## Requirements
 
 - PHP 5.6 or higher.
-- For advanced browser and OS detection:
-  - [Mobile Detect](https://github.com/serbanghita/Mobile-Detect) library.
-  - [Browser.php](https://github.com/cbschuld/Browser.php) library.
 
 ## Installation
 
@@ -48,11 +44,6 @@ For PHP 7.0+:
 include_once 'php70/LogLeaf.php';
 ```
 
-3. (Optional) For advanced detection, download and include the following libraries:
-
-   - [Mobile Detect](https://github.com/serbanghita/Mobile-Detect)
-   - [Browser.php](https://github.com/cbschuld/Browser.php)
-
 ## Usage
 
 Instantiate the LogLeaf class with your log file's name, file type (either 'txt' or 'csv'), and, if desired, specify the timestamp format, CSV columns, and flags for IP and Browser/OS logging.
@@ -60,31 +51,15 @@ Instantiate the LogLeaf class with your log file's name, file type (either 'txt'
 For TXT logging:
 
 ```php
-$loggerTxt = new LogLeaf("downloads.txt", 'txt', 'Y-m-d H:i:s', [], true, true, false);
+$loggerTxt = new LogLeaf("downloads.txt", 'txt', 'Y-m-d H:i:s', [], true, true);
 ```
-
-Here, it will log using basic detection.
-
-```php
-$loggerTxtAdvanced = new LogLeaf("downloads.txt", 'txt', 'Y-m-d H:i:s', [], true, true, true, 'path/to/MobileDetect.php', 'path/to/Browser.php');
-```
-
-Here, it will log using advanced detection.
 
 For CSV logging:
 
 ```php
 $csvColumns = ['Timestamp', 'IP', 'Browser', 'OS', 'File'];
-$loggerCsv = new LogLeaf("downloads.csv", 'csv', 'Y-m-d H:i:s', $csvColumns, true, true, false);
+$loggerCsv = new LogLeaf("downloads.csv", 'csv', 'Y-m-d H:i:s', $csvColumns, true, true);
 ```
-
-This will create a CSV logger with basic detection.
-
-```php
-$loggerCsvAdvanced = new LogLeaf("downloads.csv", 'csv', 'Y-m-d H:i:s', $csvColumns, true, true, true, 'path/to/MobileDetect.php', 'path/to/Browser.php');
-```
-
-This will create a CSV logger using advanced detection.
 
 If a custom timestamp format is required, set it using the setTimestampFormat method:
 
@@ -111,7 +86,6 @@ The Logger class will throw exceptions in the following scenarios:
 - Inability to read or write to the log file.
 - Providing an empty file name.
 - Mismatch between data provided in the `putLog` method and the specified CSV columns.
-- Choosing advanced detection without having the required external libraries.
 - Allows users to define custom error messages for specific error scenarios, offering a more tailored logging experience.
 
 ## Contributing
