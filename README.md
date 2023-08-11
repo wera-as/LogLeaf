@@ -1,6 +1,6 @@
-# File Download Logger
+# LogLeaf
 
-The File Download Logger is a versatile and adaptable PHP class designed to log file download events to either a text (.txt) or a comma-separated value (.csv) file. With each download event, the Logger generates a timestamped entry. Additionally, it can capture IP addresses, browser details, and operating system information. The Logger supports PHP 5.6 and onwards, and offers enhanced error customization.
+LogLeaf is a versatile and adaptable PHP class designed to log file download events to either a text (.txt) or a comma-separated value (.csv) file. With each download event, the Logger generates a timestamped entry. Additionally, it can capture IP addresses, browser details, and operating system information. The Logger supports PHP 5.6 and onwards, and offers enhanced error customization.
 ## Features
 
 - Customize the log file path as per your needs.
@@ -23,12 +23,12 @@ The File Download Logger is a versatile and adaptable PHP class designed to log 
 
 ## Installation
 
-To install the File Download Logger:
+To install LogLeaf:
 
 1. Clone this repository or download the Logger file (`logger56.php` for PHP 5.6, `logger.php` for PHP 7.0+):
 
 ```bash
-git clone https://github.com/wera-as/file-download-logger.git
+git clone https://github.com/wera-as/LogLeaf.git
 ```
 
 2. Include the Logger file in your PHP script:
@@ -117,4 +117,4 @@ Your contributions are always welcome! Feel free to fork this project and submit
 
 ## License
 
-The File Download Logger is open-source software under the MIT license.
+LogLeaf is open-source software under the MIT license.
