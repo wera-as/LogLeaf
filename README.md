@@ -1,4 +1,4 @@
-# LogLeaf
+![LogLeaf Logo](https://raw.githubusercontent.com/wera-as/LogLeaf/644fcc23cdc930a0dfc750ab42bd6b3bfe14c7dd/img/logleaf_logo.svg)
 
 LogLeaf is a versatile and adaptable PHP class designed to log file download events to either a text (.txt) or a comma-separated value (.csv) file. With each download event, the Logger generates a timestamped entry. Additionally, it can capture IP addresses, browser details, and operating system information. The Logger supports PHP 5.6 and onwards, and offers enhanced error customization.
 ## Features
