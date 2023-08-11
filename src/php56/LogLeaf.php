@@ -151,18 +151,19 @@ class LogLeaf
 
         $logData = [$timestamp];
 
-        if (in_array("IP", $this->csvColumns)) {
+        if (in_array("IP", $this->csvColumns) || in_array("IP", $insert)) {
             $logData[] = $this->getClientIP();
         }
 
-        if (in_array("Browser", $this->csvColumns) && in_array("OS", $this->csvColumns)) {
+        if ((in_array("Browser", $this->csvColumns) && in_array("OS", $this->csvColumns)) || (in_array("Browser", $insert) && in_array("OS", $insert))) {
             $user_agent = $_SERVER['HTTP_USER_AGENT'];
             $logData[] = $this->getBrowser($user_agent);
             $logData[] = $this->getOS($user_agent);
         }
 
         if ($this->fileType === 'txt') {
-            $logEntry = $timestamp . " : " . $insert . PHP_EOL;
+            $logEntryComponents = array_merge(array_slice($logData, 1), $insert);
+            $logEntry = $timestamp . ", " . implode(", ", $logEntryComponents) . PHP_EOL;
             if (file_put_contents($this->file, $logEntry, FILE_APPEND) === false) {
                 throw new RuntimeException(sprintf($this->errorMessages['writeFailed'], $this->file));
             }
@@ -184,6 +185,7 @@ class LogLeaf
             fclose($file);
         }
     }
+
 
     /**
      * Get content of log file.
