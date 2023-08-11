@@ -41,6 +41,17 @@ class Logger
     private $browserDetectPath;
 
     /**
+     * @var array Custom error messages
+     */
+    private $errorMessages = [
+        'emptyFilename' => 'Filename cannot be empty.',
+        'writeFailed' => 'Failed to write to log file %s',
+        'readFailed' => 'Failed to read log file %s',
+        'browserDetectionFailed' => 'Error: Browser detection failed',
+        'osDetectionFailed' => 'Error: OS detection failed'
+    ];
+
+    /**
      * Logger constructor.
      *
      * @param string $filename              File name
@@ -57,7 +68,7 @@ class Logger
     public function __construct($filename, $fileType, $timestampFormat = 'Y-m-d H:i:s', $csvColumns = [], $logIP = false, $logBrowserOS = false, $useAdvancedDetection = false, $mobileDetectPath = '', $browserDetectPath = '')
     {
         if (empty($filename)) {
-            throw new InvalidArgumentException('Filename cannot be empty.');
+            throw new InvalidArgumentException($this->errorMessages['emptyFilename']);
         }
 
         if (!file_exists($filename)) {
@@ -85,6 +96,19 @@ class Logger
             $file = fopen($this->file, 'a');
             fputcsv($file, $this->csvColumns);
             fclose($file);
+        }
+    }
+
+    /**
+     * Define custom error messages.
+     *
+     * @param string $key Key for the error type.
+     * @param string $message Custom error message.
+     */
+    public function define($key, $message)
+    {
+        if (isset($this->errorMessages[$key])) {
+            $this->errorMessages[$key] = $message;
         }
     }
 
@@ -126,7 +150,7 @@ class Logger
         if ($this->fileType === 'txt') {
             $logEntry = $timestamp . " : " . $insert . PHP_EOL;
             if (file_put_contents($this->file, $logEntry, FILE_APPEND) === false) {
-                throw new RuntimeException("Failed to write to log file {$this->file}");
+                throw new RuntimeException(sprintf($this->errorMessages['writeFailed'], $this->file));
             }
         } elseif ($this->fileType === 'csv') {
             $file = fopen($this->file, 'a');
@@ -135,11 +159,11 @@ class Logger
             if (!empty($this->csvColumns)) {
                 $csvData = array_combine($this->csvColumns, $data);
                 if (fputcsv($file, $csvData) === false) {
-                    throw new RuntimeException("Failed to write to CSV file {$this->file}");
+                    throw new RuntimeException(sprintf($this->errorMessages['writeFailed'], $this->file));
                 }
             } else {
                 if (fputcsv($file, $data) === false) {
-                    throw new RuntimeException("Failed to write to CSV file {$this->file}");
+                    throw new RuntimeException(sprintf($this->errorMessages['writeFailed'], $this->file));
                 }
             }
 
@@ -157,7 +181,7 @@ class Logger
     {
         $content = @file_get_contents($this->file);
         if ($content === false) {
-            throw new RuntimeException("Failed to read log file {$this->file}");
+            throw new RuntimeException(sprintf($this->errorMessages['readFailed'], $this->file));
         }
 
         return $content;
@@ -178,7 +202,7 @@ class Logger
             if ($detectedBrowser) {
                 return $detectedBrowser;
             } else {
-                return "Error: Browser detection failed";
+                return $this->errorMessages['browserDetectionFailed'];
             }
         } else {
             // Fallback to basic in-house method
@@ -211,7 +235,7 @@ class Logger
             if ($detectedOS) {
                 return $detectedOS;
             } else {
-                return "Error: OS detection failed";
+                return $this->errorMessages['osDetectionFailed'];
             }
         } else {
             if (strpos($user_agent, 'Windows NT') !== false) {

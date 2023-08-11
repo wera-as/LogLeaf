@@ -2,10 +2,23 @@
 
 
 
+
+
+## Version 1.4 (August 11, 2023)
+
+### Added
+
+- Introduced a mechanism to define custom error messages via a `define` method.
+
+### Updated
+- Replaced hardcoded error messages with references to a new `$errorMessages` property to allow for custom error definitions.
+- The Logger class's error handling mechanism was enhanced to utilize the custom error messages.
+
+
+
+
+
 ## Version 1.3 (August 10, 2023)
-
-
-
 
 ### Added
 

@@ -1,7 +1,6 @@
 # File Download Logger
 
-The File Download Logger is a versatile and adaptable PHP class designed to log file download events to either a text (.txt) or a comma-separated value (.csv) file. With each download event, the Logger generates a timestamped entry. Additionally, it can capture IP addresses, browser details, and operating system information. The Logger supports PHP 5.6 and onwards.
-
+The File Download Logger is a versatile and adaptable PHP class designed to log file download events to either a text (.txt) or a comma-separated value (.csv) file. With each download event, the Logger generates a timestamped entry. Additionally, it can capture IP addresses, browser details, and operating system information. The Logger supports PHP 5.6 and onwards, and offers enhanced error customization.
 ## Features
 
 - Customize the log file path as per your needs.
@@ -13,6 +12,7 @@ The File Download Logger is a versatile and adaptable PHP class designed to log 
 - Optionally log IP addresses of users downloading files.
 - Capture browser and operating system details for each download event.
 - Choose between basic (in-house) and advanced (using external libraries) detection methods.
+- Define custom error messages for specific scenarios to better suit your application's requirements.
 
 ## Requirements
 
@@ -109,6 +109,7 @@ The Logger class will throw exceptions in the following scenarios:
 - Providing an empty file name.
 - Mismatch between data provided in the `putLog` method and the specified CSV columns.
 - Choosing advanced detection without having the required external libraries.
+- Allows users to define custom error messages for specific error scenarios, offering a more tailored logging experience.
 
 ## Contributing
 
