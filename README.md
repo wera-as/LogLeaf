@@ -1,19 +1,21 @@
 ![LogLeaf Logo](https://raw.githubusercontent.com/wera-as/LogLeaf/644fcc23cdc930a0dfc750ab42bd6b3bfe14c7dd/img/logleaf_logo.svg)
 
 LogLeaf is a versatile and adaptable PHP class designed to log file download events to either a text (.txt) or a comma-separated value (.csv) file. With each download event, the Logger generates a timestamped entry. Additionally, it can capture IP addresses, browser details, and operating system information. The Logger supports PHP 5.6 and onwards, and offers enhanced error customization.
+
 ## Features
 
+
+- Automatic log rotation based on both time and file size. Logs are named using a pattern like `Week 22 2023 2` where the last number increments if a log file for that week already exists. Logs are retained for a maximum of 3 months by default.
 - Customize the log file path as per your needs.
 - Log to a text (.txt) or a CSV (.csv) file.
 - Set a custom timestamp format to fit your application's requirements.
 - Append new log entries with accurate timestamps for chronological tracking.
 - Retrieve all log entries for review or analysis.
 - Define custom CSV column names when logging to a CSV file.
-- Optionally log IP addresses of users downloading files.
+- Optionally log IP addresses of users downloading files using an improved IP detection mechanism that accounts for proxies and load balancers.
 - Capture browser and operating system details for each download event.
 - Choose between basic (in-house) and advanced (using external libraries) detection methods.
 - Define custom error messages for specific scenarios to better suit your application's requirements.
-- Automatic log rotation based on both time and file size. Logs are named using a pattern like `Week 22 2023 2` where the last number increments if a log file for that week already exists. Logs are retained for a maximum of 3 months by default.
 
 ## Requirements
 
@@ -26,7 +28,7 @@ LogLeaf is a versatile and adaptable PHP class designed to log file download eve
 
 To install LogLeaf:
 
-1. Clone this repository or download the Logger file (`logger56.php` for PHP 5.6, `logger.php` for PHP 7.0+):
+1. Clone this repository or download the Logger file (`php56/LogLeaf.php` for PHP 5.6, `php70/LogLeaf.php` for PHP 7.0+):
 
 ```bash
 git clone https://github.com/wera-as/LogLeaf.git
@@ -37,13 +39,13 @@ git clone https://github.com/wera-as/LogLeaf.git
 For PHP 5.6:
 
 ```php
-include_once 'logger56.php';
+include_once 'php56/LogLeaf.php';
 ```
 
 For PHP 7.0+:
 
 ```php
-include_once 'logger.php';
+include_once 'php70/LogLeaf.php';
 ```
 
 3. (Optional) For advanced detection, download and include the following libraries:
