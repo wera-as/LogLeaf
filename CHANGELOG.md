@@ -2,6 +2,15 @@
 
 
 
+## Version 1.5.1 (August 21, 2023)
+### Added
+- Added support for tsv files.
+- Added error handling for illegal file extensions.
+
+
+
+
+
 ## Version 1.5 (August 11, 2023)
 ### Removed
 

@@ -1,17 +1,17 @@
 ![LogLeaf Logo](https://raw.githubusercontent.com/wera-as/LogLeaf/fdb8945c5ea09841bd5826fb7fab80dbfb312d06/img/logleaf_logo.svg)
 
-LogLeaf is a versatile and adaptable PHP class designed to log file download events to either a text (.txt) or a comma-separated value (.csv) file. With each download event, the Logger generates a timestamped entry. Additionally, it can capture IP addresses, browser details, and operating system information. The Logger supports PHP 5.6 and onwards, and offers enhanced error customization.
+LogLeaf is a versatile and adaptable PHP class designed to log file download events to either a text (.txt), a comma-separated value (.csv) and a tab-separated value(.tsv) file. With each download event, the Logger generates a timestamped entry. Additionally, it can capture IP addresses, browser details, and operating system information. The Logger supports PHP 5.6 and onwards, and offers enhanced error customization.
 
 ## Features
 
 
 - Automatic log rotation based on both time and file size. Logs are named using a pattern like `Week 22 2023 2` where the last number increments if a log file for that week already exists. Logs are retained for a maximum of 3 months by default.
 - Customize the log file path as per your needs.
-- Log to a text (.txt) or a CSV (.csv) file.
+- Log to a text (.txt), CSV (.csv) and TSV(.tsv) file.
 - Set a custom timestamp format to fit your application's requirements.
 - Append new log entries with accurate timestamps for chronological tracking.
 - Retrieve all log entries for review or analysis.
-- Define custom CSV column names when logging to a CSV file.
+- Define custom CSV column names when logging to a CSV or TSV file.
 - Optionally log IP addresses of users downloading files using an improved IP detection mechanism that accounts for proxies and load balancers.
 - Capture browser and operating system details for each download event.
 - Define custom error messages for specific scenarios to better suit your application's requirements.

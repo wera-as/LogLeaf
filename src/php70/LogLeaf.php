@@ -40,6 +40,7 @@ class LogLeaf
      */
     private $errorMessages = [
         'emptyFilename'             =>  'Filename cannot be empty.',
+        'illegalExtension'          =>  'Invalid file extension. Allowed extensions are:',
         'writeFailed'               =>  'Failed to write to log file %s',
         'readFailed'                =>  'Failed to read log file %s',
         'browserDetectionFailed'    =>  'Error: Browser detection failed',
@@ -62,6 +63,15 @@ class LogLeaf
      */
     public function __construct($filename, $fileType, $timestampFormat = 'Y-m-d H:i:s', $csvColumns = [], $logIP = false, $logBrowserOS = false)
     {
+
+        $allowedExtensions = ['txt', 'csv', 'tsv'];
+        $fileExtension = pathinfo($filename, PATHINFO_EXTENSION);
+    
+        if (!in_array($fileExtension, $allowedExtensions)) {
+            throw new InvalidArgumentException($this->errorMessages['illegalExtension'] . implode(', ', $allowedExtensions));
+        }
+
+
         if (empty($filename)) {
             throw new InvalidArgumentException($this->errorMessages['emptyFilename']);
         }
@@ -85,10 +95,11 @@ class LogLeaf
             $this->csvColumns[] = "OS";
         }
 
-        if ($this->fileType === 'csv' && !empty($this->csvColumns) && filesize($this->file) === 0) {
+        if (($this->fileType === 'csv' || $this->fileType === 'tsv') && !empty($this->csvColumns) && filesize($this->file) === 0) {
+            $delimiter = $this->fileType === 'csv' ? ',' : "\t";
             $file = fopen($this->file, 'a');
-            fputcsv($file, $this->csvColumns);
-            fclose($file);
+            fputcsv($file, $this->csvColumns, $delimiter);
+            fclose($file);    
         }
     }
 
@@ -149,13 +160,14 @@ class LogLeaf
             if (file_put_contents($this->file, $logEntry, FILE_APPEND) === false) {
                 throw new RuntimeException(sprintf($this->errorMessages['writeFailed'], $this->file));
             }
-        } elseif ($this->fileType === 'csv') {
+        } elseif ($this->fileType === 'csv' || $this->fileType === 'tsv') {
+            $delimiter = $this->fileType === 'csv' ? ',' : "\t";
             $file = fopen($this->file, 'a');
             $data = array_merge($logData, $insert);
 
             if (!empty($this->csvColumns)) {
                 $csvData = array_combine($this->csvColumns, $data);
-                if (fputcsv($file, $csvData) === false) {
+                if (fputcsv($file, $data, $delimiter) === false) {
                     throw new RuntimeException(sprintf($this->errorMessages['writeFailed'], $this->file));
                 }
             } else {
