@@ -39,7 +39,6 @@ class LogLeaf
      * @var array Custom error messages
      */
     private $errorMessages = [
-        'emptyFilename'             =>  'Filename cannot be empty.',
         'illegalExtension'          =>  'Invalid file extension. Allowed extensions are:',
         'writeFailed'               =>  'Failed to write to log file %s',
         'readFailed'                =>  'Failed to read log file %s',
@@ -56,24 +55,18 @@ class LogLeaf
      * @param array  $csvColumns            CSV column names (optional)
      * @param bool   $logIP                 Whether to log IP address (optional)
      * @param bool   $logBrowserOS          Whether to log Browser and OS (optional)
-     * @param bool   $useAdvancedDetection  Whether to use advanced detection method (optional)
-     * @param string $mobileDetectPath      Path to Mobile_Detect library (optional)
-     * @param string $browserDetectPath     Path to Browser library (optional)
      * @throws InvalidArgumentException If the file name is empty
      */
     public function __construct($filename, $fileType, $timestampFormat = 'Y-m-d H:i:s', $csvColumns = [], $logIP = false, $logBrowserOS = false)
     {
+        $defaultFilename = 'logleaf_log.txt';
 
+        $filename = empty($filename) ? $defaultFilename : $filename;
         $allowedExtensions = ['txt', 'csv', 'tsv'];
         $fileExtension = pathinfo($filename, PATHINFO_EXTENSION);
     
         if (!in_array($fileExtension, $allowedExtensions)) {
             throw new InvalidArgumentException($this->errorMessages['illegalExtension'] . implode(', ', $allowedExtensions));
-        }
-
-
-        if (empty($filename)) {
-            throw new InvalidArgumentException($this->errorMessages['emptyFilename']);
         }
 
         if (!file_exists($filename)) {
@@ -250,33 +243,25 @@ class LogLeaf
      * 
      * @return string Client's IP address. Returns 'UNKNOWN' if the IP cannot be determined.
      */
-    function getClientIP()
-    {
-        $ipaddress = '';
-
-        if (isset($_SERVER['HTTP_CLIENT_IP'])) {
-            $ipaddress = $_SERVER['HTTP_CLIENT_IP'];
-        } else if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $ipaddress = $_SERVER['HTTP_X_FORWARDED_FOR'];
-        } else if (isset($_SERVER['HTTP_X_FORWARDED'])) {
-            $ipaddress = $_SERVER['HTTP_X_FORWARDED'];
-        } else if (isset($_SERVER['HTTP_X_CLUSTER_CLIENT_IP'])) {
-            $ipaddress = $_SERVER['HTTP_X_CLUSTER_CLIENT_IP'];
-        } else if (isset($_SERVER['HTTP_FORWARDED_FOR'])) {
-            $ipaddress = $_SERVER['HTTP_FORWARDED_FOR'];
-        } else if (isset($_SERVER['HTTP_FORWARDED'])) {
-            $ipaddress = $_SERVER['HTTP_FORWARDED'];
-        } else if (isset($_SERVER['REMOTE_ADDR'])) {
-            $ipaddress = $_SERVER['REMOTE_ADDR'];
-        } else {
-            $ipaddress = 'UNKNOWN';
+    function getClientIP() {
+        $headers = [
+            'HTTP_CLIENT_IP', 
+            'HTTP_X_FORWARDED_FOR', 
+            'HTTP_X_FORWARDED', 
+            'HTTP_X_CLUSTER_CLIENT_IP', 
+            'HTTP_FORWARDED_FOR', 
+            'HTTP_FORWARDED', 
+            'REMOTE_ADDR'
+        ];
+    
+        foreach ($headers as $header) {
+            if (isset($_SERVER[$header])) {
+                $ip_list = explode(',', $_SERVER[$header]);
+                return trim(end($ip_list)); // Return the last IP in the list
+            }
         }
-
-        // To handle cases where multiple IPs are returned
-        $ip_list = explode(',', $ipaddress);
-        $ipaddress = trim(end($ip_list));
-
-        return $ipaddress;
+    
+        return 'UNKNOWN';
     }
 
     /**

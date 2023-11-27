@@ -44,6 +44,12 @@ For PHP 7.0+:
 include_once 'php70/LogLeaf.php';
 ```
 
+For PHP 8.3:
+
+```php
+include_once 'php83/LogLeaf.php';
+```
+
 ## Usage
 
 Instantiate the LogLeaf class with your log file's name, file type (either 'txt' or 'csv'), and, if desired, specify the timestamp format, CSV columns, and flags for IP and Browser/OS logging.

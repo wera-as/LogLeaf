@@ -13,32 +13,32 @@ class LogLeaf
     /**
      * @var string File name
      */
-    private $file;
+    private readonly string $file;
 
     /**
      * @var string Timestamp format
      */
-    private $timestampFormat;
+    private string $timestampFormat;
 
     /**
      * @var string File type (txt or csv)
      */
-    private $fileType;
+    private readonly string $fileType;
 
     /**
      * @var array CSV column names
      */
-    private $csvColumns;
+    private array $csvColumns;
 
     /**
      * @var int Week of the last rotation.
      */
-    private $lastRotationWeek;
+    private int $lastRotationWeek;
 
     /**
      * @var array Custom error messages
      */
-    private $errorMessages = [
+    private array $errorMessages = [
         'illegalExtension'          =>  'Invalid file extension. Allowed extensions are:',
         'writeFailed'               =>  'Failed to write to log file %s',
         'readFailed'                =>  'Failed to read log file %s',
@@ -57,14 +57,21 @@ class LogLeaf
      * @param bool   $logBrowserOS          Whether to log Browser and OS (optional)
      * @throws InvalidArgumentException If the file name is empty
      */
-    public function __construct($filename, $fileType, $timestampFormat = 'Y-m-d H:i:s', $csvColumns = array(), $logIP = false, $logBrowserOS = false)
-    {
+    public function __construct(
+        string $filename,
+        string $fileType,
+        string $timestampFormat = 'Y-m-d H:i:s',
+        array $csvColumns = [],
+        bool $logIP = false,
+        bool $logBrowserOS = false
+    ) {
+
         $defaultFilename = 'logleaf_log.txt';
 
         $filename = empty($filename) ? $defaultFilename : $filename;
         $allowedExtensions = ['txt', 'csv', 'tsv'];
         $fileExtension = pathinfo($filename, PATHINFO_EXTENSION);
-    
+
         if (!in_array($fileExtension, $allowedExtensions)) {
             throw new InvalidArgumentException($this->errorMessages['illegalExtension'] . implode(', ', $allowedExtensions));
         }
@@ -92,7 +99,7 @@ class LogLeaf
             $delimiter = $this->fileType === 'csv' ? ',' : "\t";
             $file = fopen($this->file, 'a');
             fputcsv($file, $this->csvColumns, $delimiter);
-            fclose($file);    
+            fclose($file);
         }
     }
 
@@ -125,51 +132,52 @@ class LogLeaf
      * @param mixed $insert Log entry data
      * @throws RuntimeException If failed to write to file
      */
-    public function putLog($insert)
-    {
-        $this->rotateLogs();
-        $this->cleanupOldLogs();
+    public function putLog(array|string $insert)
+    { {
+            $this->rotateLogs();
+            $this->cleanupOldLogs();
 
-        $timestamp = date($this->timestampFormat);
-        if (!is_array($insert)) {
-            $insert = [$insert];
-        }
-
-        $logData = [$timestamp];
-
-        if (in_array("IP", $this->csvColumns) || in_array("IP", $insert)) {
-            $logData[] = $this->getClientIP();
-        }
-
-        if ((in_array("Browser", $this->csvColumns) && in_array("OS", $this->csvColumns)) || (in_array("Browser", $insert) && in_array("OS", $insert))) {
-            $user_agent = $_SERVER['HTTP_USER_AGENT'];
-            $logData[] = $this->getBrowser($user_agent);
-            $logData[] = $this->getOS($user_agent);
-        }
-
-        if ($this->fileType === 'txt') {
-            $logEntryComponents = array_merge(array_slice($logData, 1), $insert);
-            $logEntry = $timestamp . ", " . implode(", ", $logEntryComponents) . PHP_EOL;
-            if (file_put_contents($this->file, $logEntry, FILE_APPEND) === false) {
-                throw new RuntimeException(sprintf($this->errorMessages['writeFailed'], $this->file));
-            }
-        } elseif ($this->fileType === 'csv' || $this->fileType === 'tsv') {
-            $delimiter = $this->fileType === 'csv' ? ',' : "\t";
-            $file = fopen($this->file, 'a');
-            $data = array_merge($logData, $insert);
-
-            if (!empty($this->csvColumns)) {
-                $csvData = array_combine($this->csvColumns, $data);
-                if (fputcsv($file, $data, $delimiter) === false) {
-                    throw new RuntimeException(sprintf($this->errorMessages['writeFailed'], $this->file));
-                }
-            } else {
-                if (fputcsv($file, $data) === false) {
-                    throw new RuntimeException(sprintf($this->errorMessages['writeFailed'], $this->file));
-                }
+            $timestamp = date($this->timestampFormat);
+            if (!is_array($insert)) {
+                $insert = [$insert];
             }
 
-            fclose($file);
+            $logData = [$timestamp];
+
+            if (in_array("IP", $this->csvColumns) || in_array("IP", $insert)) {
+                $logData[] = $this->getClientIP();
+            }
+
+            if ((in_array("Browser", $this->csvColumns) && in_array("OS", $this->csvColumns)) || (in_array("Browser", $insert) && in_array("OS", $insert))) {
+                $user_agent = $_SERVER['HTTP_USER_AGENT'];
+                $logData[] = $this->getBrowser($user_agent);
+                $logData[] = $this->getOS($user_agent);
+            }
+
+            if ($this->fileType === 'txt') {
+                $logEntryComponents = array_merge(array_slice($logData, 1), $insert);
+                $logEntry = $timestamp . ", " . implode(", ", $logEntryComponents) . PHP_EOL;
+                if (file_put_contents($this->file, $logEntry, FILE_APPEND) === false) {
+                    throw new RuntimeException(sprintf($this->errorMessages['writeFailed'], $this->file));
+                }
+            } elseif ($this->fileType === 'csv' || $this->fileType === 'tsv') {
+                $delimiter = $this->fileType === 'csv' ? ',' : "\t";
+                $file = fopen($this->file, 'a');
+                $data = array_merge($logData, $insert);
+
+                if (!empty($this->csvColumns)) {
+                    $csvData = array_combine($this->csvColumns, $data);
+                    if (fputcsv($file, $data, $delimiter) === false) {
+                        throw new RuntimeException(sprintf($this->errorMessages['writeFailed'], $this->file));
+                    }
+                } else {
+                    if (fputcsv($file, $data) === false) {
+                        throw new RuntimeException(sprintf($this->errorMessages['writeFailed'], $this->file));
+                    }
+                }
+
+                fclose($file);
+            }
         }
     }
 
@@ -196,20 +204,17 @@ class LogLeaf
      * @param string $user_agent User agent string
      * @return string Browser name
      */
-    private function getBrowser($user_agent)
+    private function getBrowser(string $user_agent): string
     {
-        if (strpos($user_agent, 'Firefox') !== false) {
-            return 'Firefox';
-        } elseif (strpos($user_agent, 'Chrome') !== false) {
-            return 'Chrome';
-        } elseif (strpos($user_agent, 'Safari') !== false) {
-            return 'Safari';
-        } elseif (strpos($user_agent, 'MSIE') !== false || strpos($user_agent, 'Trident') !== false) {
-            return 'Internet Explorer';
-        } else {
-            return 'Others';
-        }
+        return match (true) {
+            strpos($user_agent, 'Firefox') !== false => 'Firefox',
+            strpos($user_agent, 'Chrome') !== false => 'Chrome',
+            strpos($user_agent, 'Safari') !== false => 'Safari',
+            strpos($user_agent, 'MSIE') !== false, strpos($user_agent, 'Trident') !== false => 'Internet Explorer',
+            default => 'Others',
+        };
     }
+
 
 
     /**
@@ -218,21 +223,16 @@ class LogLeaf
      * @param string $user_agent User agent string
      * @return string OS name
      */
-    private function getOS($user_agent)
+    private function getOS(string $user_agent): string
     {
-        if (strpos($user_agent, 'Windows NT') !== false) {
-            return 'Windows';
-        } elseif (strpos($user_agent, 'Mac OS X') !== false) {
-            return 'MacOS';
-        } elseif (strpos($user_agent, 'Linux') !== false) {
-            return 'Linux';
-        } elseif (strpos($user_agent, 'iPhone') !== false || strpos($user_agent, 'iPad') !== false) {
-            return 'iOS';
-        } elseif (strpos($user_agent, 'Android') !== false) {
-            return 'Android';
-        } else {
-            return 'Others';
-        }
+        return match (true) {
+            strpos($user_agent, 'Windows NT') !== false => 'Windows',
+            strpos($user_agent, 'Mac OS X') !== false => 'MacOS',
+            strpos($user_agent, 'Linux') !== false => 'Linux',
+            strpos($user_agent, 'iPhone') !== false, strpos($user_agent, 'iPad') !== false => 'iOS',
+            strpos($user_agent, 'Android') !== false => 'Android',
+            default => 'Others',
+        };
     }
 
     /**

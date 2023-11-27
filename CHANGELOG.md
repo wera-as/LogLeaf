@@ -2,6 +2,15 @@
 
 
 
+## Version 1.6 (November 27, 2023)
+### Added
+- Added support for PHP 8.3
+
+### Tweaks
+- Adjusted the `getClientIP()` function to be more effective.
+
+
+
 ## Version 1.5.1 (August 21, 2023)
 ### Added
 - Added support for tsv files.
@@ -24,7 +33,7 @@
 ## Version 1.4.2 (August 11, 2023)
 ### Optimized
 
-- Improved the putLog function to handle data more efficiently, ensuring consistent log structure regardless of the logging flags.
+- Improved the `putLog()` function to handle data more efficiently, ensuring consistent log structure regardless of the logging flags.
 - Enhanced log rotation mechanism to accommodate varying log file names while ensuring that log history is maintained according to defined criteria.
 
 ### Fixed
