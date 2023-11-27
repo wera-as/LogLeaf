@@ -6,8 +6,9 @@
 ### Added
 - Added support for PHP 8.3
 
-### Tweaks
+### Update
 - Adjusted the `getClientIP()` function to be more effective.
+- Adjusted the `__construct`to allow for empty filenames.
 
 
 
