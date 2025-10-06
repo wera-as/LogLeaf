@@ -1,61 +1,83 @@
 <?php
 
-/** 
- * Logger class for handling different file types.
+declare(strict_types=1);
+
+/**
+ * LogLeaf — lightweight file logger with rotation and TXT/CSV/TSV/JSONL support (PHP 8.3+).
+ *
+ * Features
+ * - Weekly and size-based rotation, optional gzip for rotated files.
+ * - CSV/TSV with column order and automatic "Timestamp" header.
+ * - JSON Lines (JSONL) and plain text output.
+ * - Pluggable processors (callables) to mutate records before writing.
+ * - Convenience helpers: debug(), info(), warning(), error().
+ * - File locking, path validation, tail() helper.
+ *
+ * @author   Wera
+ * @license  MIT
+ * @version  2.0
+ * @requires PHP 8.3+
  */
-class LogLeaf
+final class LogLeaf
 {
-    const ROTATE_DAY        =   'Monday';   // Rotate logs every Monday
-    const LOG_PREFIX        =   'Week';     // Prefix for log names
-    const MAX_LOG_DURATION  =   3 * 4;      // Keep logs for 3 months (assuming 4 weeks per month)
-    const MAX_LOG_SIZE      =   26214400;   // 25 MB in bytes
+    /** Weekday name used for time-based rotation, e.g. "Monday". */
+    public const ROTATE_DAY       = 'Monday';
+    /** Prefix for rotated filenames. */
+    public const LOG_PREFIX       = 'Week';
+    /** Maximum number of rotated files to keep. */
+    public const MAX_LOG_DURATION = 12;
+    /** Max active file size in bytes before rotation. */
+    public const MAX_LOG_SIZE     = 26214400;
+    /** Default timezone identifier. */
+    public const DEFAULT_TZ       = 'UTC';
+    /** Enable gzip compression for rotated files. */
+    public const ENABLE_GZIP      = false;
 
-    /**
-     * @var string File name
-     */
+    /** Supported output formats. */
+    public const FORMAT_TXT       = 'txt';
+    public const FORMAT_CSV       = 'csv';
+    public const FORMAT_TSV       = 'tsv';
+    public const FORMAT_JSONL     = 'jsonl';
+
+    /** Absolute path to the active log file. */
     private readonly string $file;
-
-    /**
-     * @var string Timestamp format
-     */
-    private string $timestampFormat;
-
-    /**
-     * @var string File type (txt or csv)
-     */
+    /** Output format: txt|csv|tsv|jsonl. */
     private readonly string $fileType;
-
-    /**
-     * @var array CSV column names
-     */
+    /** PHP date() format for timestamps. */
+    private string $timestampFormat;
+    /** Ordered CSV/TSV columns; "Timestamp" auto-prepended if missing. */
     private array $csvColumns;
-
-    /**
-     * @var int Week of the last rotation.
-     */
+    /** ISO week number of last rotation. */
     private int $lastRotationWeek;
+    /** Current timezone identifier. */
+    private string $tz;
+    /** @var array<callable(array):array> Processors to mutate records before writing. */
+    private array $processors = [];
 
     /**
-     * @var array Custom error messages
+     * Customizable error messages.
+     * @var array{illegalExtension:string,writeFailed:string,readFailed:string,pathInvalid:string}
      */
     private array $errorMessages = [
-        'illegalExtension'          =>  'Invalid file extension. Allowed extensions are:',
-        'writeFailed'               =>  'Failed to write to log file %s',
-        'readFailed'                =>  'Failed to read log file %s',
-        'browserDetectionFailed'    =>  'Error: Browser detection failed',
-        'osDetectionFailed'         =>  'Error: OS detection failed'
+        'illegalExtension' => 'Invalid file extension. Allowed extensions are:',
+        'writeFailed'      => 'Failed to write to log file %s',
+        'readFailed'       => 'Failed to read log file %s',
+        'pathInvalid'      => 'Invalid log path or directory not writable: %s',
     ];
 
     /**
-     * Logger constructor.
+     * Constructor.
      *
-     * @param string $filename              File name
-     * @param string $fileType              File type (txt or csv)
-     * @param string $timestampFormat       Timestamp format (optional)
-     * @param array  $csvColumns            CSV column names (optional)
-     * @param bool   $logIP                 Whether to log IP address (optional)
-     * @param bool   $logBrowserOS          Whether to log Browser and OS (optional)
-     * @throws InvalidArgumentException If the file name is empty
+     * @param string      $filename         Target file path (created if missing).
+     * @param string      $fileType         txt|csv|tsv|jsonl|auto  ("auto" infers from $filename extension).
+     * @param string      $timestampFormat  PHP date() format (default "Y-m-d H:i:s").
+     * @param string[]    $csvColumns       CSV/TSV column order (Timestamp auto-added if absent).
+     * @param bool        $logIP            Append public-looking client IP.
+     * @param bool        $logBrowserOS     Append Browser and OS fields.
+     * @param string|null $timezone         Timezone identifier (default UTC).
+     *
+     * @throws InvalidArgumentException     If filename extension or format is invalid.
+     * @throws RuntimeException             If directory cannot be created or is not writable.
      */
     public function __construct(
         string $filename,
@@ -63,266 +85,555 @@ class LogLeaf
         string $timestampFormat = 'Y-m-d H:i:s',
         array $csvColumns = [],
         bool $logIP = false,
-        bool $logBrowserOS = false
+        bool $logBrowserOS = false,
+        ?string $timezone = null
     ) {
-
-        $defaultFilename = 'logleaf_log.txt';
-
-        $filename = empty($filename) ? $defaultFilename : $filename;
-        $allowedExtensions = ['txt', 'csv', 'tsv'];
-        $fileExtension = pathinfo($filename, PATHINFO_EXTENSION);
-
-        if (!in_array($fileExtension, $allowedExtensions)) {
-            throw new InvalidArgumentException($this->errorMessages['illegalExtension'] . implode(', ', $allowedExtensions));
+        $allowed = ['txt', 'csv', 'tsv', 'log', 'jsonl'];
+        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        if (!in_array($ext, $allowed, true)) {
+            throw new InvalidArgumentException($this->errorMessages['illegalExtension'] . ' ' . implode(', ', $allowed));
         }
 
+        $format = strtolower($fileType);
+        if ($format === '' || $format === 'auto') {
+            $format = $this->inferFormatFromExtension($ext);
+        }
+        if (!in_array($format, [self::FORMAT_TXT, self::FORMAT_CSV, self::FORMAT_TSV, self::FORMAT_JSONL], true)) {
+            throw new InvalidArgumentException('Unsupported format: ' . $format);
+        }
+
+        $dir = dirname($filename);
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true)) {
+            throw new RuntimeException(sprintf($this->errorMessages['pathInvalid'], $dir));
+        }
+        if (!is_writable($dir)) {
+            throw new RuntimeException(sprintf($this->errorMessages['pathInvalid'], $dir));
+        }
         if (!file_exists($filename)) {
-            touch($filename);
+            @touch($filename);
         }
 
-        $this->file = $filename;
-        $this->timestampFormat = $timestampFormat;
-        $this->fileType = $fileType;
-        $this->csvColumns = $csvColumns;
-        $this->lastRotationWeek = (int) date('W');
+        $this->file             = $filename;
+        $this->fileType         = $format;
+        $this->timestampFormat  = $timestampFormat;
+        $this->csvColumns       = $csvColumns;
+        $this->lastRotationWeek = (int)date('W');
+        $this->tz               = $timezone ?? self::DEFAULT_TZ;
+        $this->setTimezone($this->tz);
 
-        if ($logIP) {
-            $this->csvColumns[] = "IP";
+        if ($logIP && !in_array('IP', $this->csvColumns, true)) {
+            $this->csvColumns[] = 'IP';
         }
-
         if ($logBrowserOS) {
-            $this->csvColumns[] = "Browser";
-            $this->csvColumns[] = "OS";
+            if (!in_array('Browser', $this->csvColumns, true)) {
+                $this->csvColumns[] = 'Browser';
+            }
+            if (!in_array('OS', $this->csvColumns, true)) {
+                $this->csvColumns[] = 'OS';
+            }
         }
 
-        if (($this->fileType === 'csv' || $this->fileType === 'tsv') && !empty($this->csvColumns) && filesize($this->file) === 0) {
-            $delimiter = $this->fileType === 'csv' ? ',' : "\t";
-            $file = fopen($this->file, 'a');
-            fputcsv($file, $this->csvColumns, $delimiter);
-            fclose($file);
+        if (($this->fileType === self::FORMAT_CSV || $this->fileType === self::FORMAT_TSV)
+            && !empty($this->csvColumns) && filesize($this->file) === 0
+        ) {
+            $this->writeCsvHeader($this->file, $this->fileType === self::FORMAT_CSV ? ',' : "\t");
         }
     }
 
     /**
-     * Define custom error messages.
+     * Override a predefined error message by key.
      *
-     * @param string $key Key for the error type.
-     * @param string $message Custom error message.
+     * @param string $key     One of: illegalExtension|writeFailed|readFailed|pathInvalid.
+     * @param string $message Replacement text.
+     * @return void
      */
-    public function define($key, $message)
+    public function define(string $key, string $message): void
     {
-        if (isset($this->errorMessages[$key])) {
+        if (array_key_exists($key, $this->errorMessages)) {
             $this->errorMessages[$key] = $message;
         }
     }
 
     /**
-     * Set timestamp format.
+     * Set the timestamp format used by date().
      *
-     * @param string $format Timestamp format
+     * @param string $format PHP date() format string.
+     * @return void
      */
-    public function setTimestampFormat($format)
+    public function setTimestampFormat(string $format): void
     {
         $this->timestampFormat = $format;
     }
 
     /**
-     * Write log entry to file.
+     * Set timezone for date() and rotation checks.
      *
-     * @param mixed $insert Log entry data
-     * @throws RuntimeException If failed to write to file
+     * @param string $tz Timezone identifier (e.g., "UTC", "Europe/Oslo").
+     * @return void
      */
-    public function putLog(array|string $insert)
-    { {
-            $this->rotateLogs();
-            $this->cleanupOldLogs();
+    public function setTimezone(string $tz): void
+    {
+        $this->tz = $tz ?: self::DEFAULT_TZ;
+        date_default_timezone_set($this->tz);
+    }
 
-            $timestamp = date($this->timestampFormat);
-            if (!is_array($insert)) {
-                $insert = [$insert];
+    /**
+     * Change output format at runtime (immutable in this PHP 8.3 build).
+     *
+     * @param string $format One of txt|csv|tsv|jsonl.
+     * @return never
+     *
+     * @throws InvalidArgumentException For unsupported format.
+     * @throws LogicException           Always thrown: format is immutable after construction.
+     */
+    public function setFormat(string $format): void
+    {
+        $format = strtolower($format);
+        if (!in_array($format, [self::FORMAT_TXT, self::FORMAT_CSV, self::FORMAT_TSV, self::FORMAT_JSONL], true)) {
+            throw new InvalidArgumentException('Unsupported format: ' . $format);
+        }
+        throw new LogicException('Format is immutable after construction in PHP 8.3 build.');
+    }
+
+    /**
+     * Register a processor to mutate records before writing.
+     *
+     * @param callable(array):array $processor Function receiving and returning the record.
+     * @return void
+     */
+    public function pushProcessor(callable $processor): void
+    {
+        $this->processors[] = $processor;
+    }
+
+    /**
+     * Log a DEBUG record.
+     *
+     * @param string $msg Message string.
+     * @param array  $ctx Context data merged under "context".
+     *  @return void
+     */
+    public function debug(string $msg, array $ctx = []): void
+    {
+        $this->putLog(['level' => 'DEBUG', 'message' => $msg, 'context' => $ctx]);
+    }
+
+    /**
+     * Log an INFO record.
+     *
+     * @param string $msg Message string.
+     * @param array  $ctx Context data merged under "context".
+     * @return void
+     */
+    public function info(string $msg, array $ctx = []): void
+    {
+        $this->putLog(['level' => 'INFO', 'message' => $msg, 'context' => $ctx]);
+    }
+
+    /**
+     * Log a WARNING record.
+     *
+     * @param string $msg Message string.
+     * @param array  $ctx Context data merged under "context".
+     * @return void
+     */
+    public function warning(string $msg, array $ctx = []): void
+    {
+        $this->putLog(['level' => 'WARNING', 'message' => $msg, 'context' => $ctx]);
+    }
+
+    /**
+     * Log an ERROR record.
+     *
+     * @param string $msg Message string.
+     * @param array  $ctx Context data merged under "context".
+     * @return void
+     */
+    public function error(string $msg, array $ctx = []): void
+    {
+        $this->putLog(['level' => 'ERROR', 'message' => $msg, 'context' => $ctx]);
+    }
+
+    /**
+     * Append a record to the log file.
+     *
+     * @param array<string,mixed>|string $insert Scalar message or associative record.
+     * @return void
+     *
+     * @throws RuntimeException On write failure.
+     */
+    public function putLog(array|string $insert): void
+    {
+        $this->maybeRotate();
+        $this->cleanupOldLogs();
+
+        $timestamp = date($this->timestampFormat);
+        $record    = is_array($insert) ? $insert : ['message' => $insert];
+
+        if ($this->needsIP($record)) {
+            $record['IP'] = $this->getClientIP();
+        }
+        if ($this->needsUAOS($record)) {
+            $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+            [$browser, $os] = $this->parseUAOS($ua);
+            $record['Browser'] = $browser;
+            $record['OS']      = $os;
+        }
+
+        foreach ($this->processors as $p) {
+            $record = $p($record);
+        }
+
+        if ($this->fileType === self::FORMAT_TXT) {
+            $line = $timestamp . ' ' . (isset($record['level']) ? '[' . $record['level'] . '] ' : '');
+            $line .= (count($record) === 1 && isset($record['message']))
+                ? (string)$record['message']
+                : json_encode($record, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            $this->appendLine($this->file, $line . PHP_EOL);
+        } elseif ($this->fileType === self::FORMAT_JSONL) {
+            $payload = ['@ts' => $timestamp] + $record;
+            $this->appendLine($this->file, json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL);
+        } else {
+            $delimiter = $this->fileType === self::FORMAT_CSV ? ',' : "\t";
+            $fh = fopen($this->file, 'ab');
+            if ($fh === false) {
+                throw new RuntimeException(sprintf($this->errorMessages['writeFailed'], $this->file));
             }
-
-            $logData = [$timestamp];
-
-            if (in_array("IP", $this->csvColumns) || in_array("IP", $insert)) {
-                $logData[] = $this->getClientIP();
-            }
-
-            if ((in_array("Browser", $this->csvColumns) && in_array("OS", $this->csvColumns)) || (in_array("Browser", $insert) && in_array("OS", $insert))) {
-                $user_agent = $_SERVER['HTTP_USER_AGENT'];
-                $logData[] = $this->getBrowser($user_agent);
-                $logData[] = $this->getOS($user_agent);
-            }
-
-            if ($this->fileType === 'txt') {
-                $logEntryComponents = array_merge(array_slice($logData, 1), $insert);
-                $logEntry = $timestamp . ", " . implode(", ", $logEntryComponents) . PHP_EOL;
-                if (file_put_contents($this->file, $logEntry, FILE_APPEND) === false) {
+            try {
+                if (!flock($fh, LOCK_EX)) {
                     throw new RuntimeException(sprintf($this->errorMessages['writeFailed'], $this->file));
                 }
-            } elseif ($this->fileType === 'csv' || $this->fileType === 'tsv') {
-                $delimiter = $this->fileType === 'csv' ? ',' : "\t";
-                $file = fopen($this->file, 'a');
-                $data = array_merge($logData, $insert);
-
-                if (!empty($this->csvColumns)) {
-                    $csvData = array_combine($this->csvColumns, $data);
-                    if (fputcsv($file, $data, $delimiter) === false) {
-                        throw new RuntimeException(sprintf($this->errorMessages['writeFailed'], $this->file));
-                    }
-                } else {
-                    if (fputcsv($file, $data) === false) {
-                        throw new RuntimeException(sprintf($this->errorMessages['writeFailed'], $this->file));
-                    }
+                if (filesize($this->file) === 0 && !empty($this->csvColumns)) {
+                    fputcsv($fh, $this->prepareHeaderColumns(), $delimiter, '"');
                 }
-
-                fclose($file);
+                $row = $this->rowForCsv($record);
+                if (fputcsv($fh, $row, $delimiter, '"') === false) {
+                    throw new RuntimeException(sprintf($this->errorMessages['writeFailed'], $this->file));
+                }
+            } finally {
+                flock($fh, LOCK_UN);
+                fclose($fh);
             }
         }
     }
 
-
     /**
-     * Get content of log file.
+     * Read the entire log file content.
      *
-     * @return string Content of log file
-     * @throws RuntimeException If failed to read log file
+     * @return string File contents.
+     *
+     * @throws RuntimeException On read failure.
      */
-    public function getLog()
+    public function getLog(): string
     {
         $content = @file_get_contents($this->file);
         if ($content === false) {
             throw new RuntimeException(sprintf($this->errorMessages['readFailed'], $this->file));
         }
-
         return $content;
     }
 
     /**
-     * Get Browser from user agent string
+     * Return the last N lines of the log efficiently.
      *
-     * @param string $user_agent User agent string
-     * @return string Browser name
+     * @param int $lines Number of lines from the end.
+     * @return string Tail content ending with newline.
      */
-    private function getBrowser(string $user_agent): string
+    public function tail(int $lines = 200): string
     {
-        return match (true) {
-            strpos($user_agent, 'Firefox') !== false => 'Firefox',
-            strpos($user_agent, 'Chrome') !== false => 'Chrome',
-            strpos($user_agent, 'Safari') !== false => 'Safari',
-            strpos($user_agent, 'MSIE') !== false, strpos($user_agent, 'Trident') !== false => 'Internet Explorer',
-            default => 'Others',
-        };
-    }
-
-
-
-    /**
-     * Get OS from user agent string
-     *
-     * @param string $user_agent User agent string
-     * @return string OS name
-     */
-    private function getOS(string $user_agent): string
-    {
-        return match (true) {
-            strpos($user_agent, 'Windows NT') !== false => 'Windows',
-            strpos($user_agent, 'Mac OS X') !== false => 'MacOS',
-            strpos($user_agent, 'Linux') !== false => 'Linux',
-            strpos($user_agent, 'iPhone') !== false, strpos($user_agent, 'iPad') !== false => 'iOS',
-            strpos($user_agent, 'Android') !== false => 'Android',
-            default => 'Others',
-        };
+        $f = @fopen($this->file, 'rb');
+        if (!$f) return '';
+        $buffer = '';
+        $lineCount = 0;
+        fseek($f, 0, SEEK_END);
+        $filesize = ftell($f);
+        while ($filesize > 0 && $lineCount <= $lines) {
+            $step = min(4096, $filesize);
+            $filesize -= $step;
+            fseek($f, $filesize);
+            $chunk = fread($f, $step);
+            $buffer = $chunk . $buffer;
+            $lineCount = substr_count($buffer, "\n");
+            if ($filesize === 0) break;
+        }
+        fclose($f);
+        $parts = explode("\n", $buffer);
+        return implode("\n", array_slice($parts, -$lines)) . "\n";
     }
 
     /**
-     * Retrieves the client's IP address.
-     * 
-     * Tries to obtain the IP address from various headers set by proxies and load balancers.
-     * If none are found, it falls back to $_SERVER['REMOTE_ADDR'].
-     * 
-     * @return string Client's IP address. Returns 'UNKNOWN' if the IP cannot be determined.
+     * Whether to include IP in the current record.
+     *
+     * @param array<string,mixed> $record Current record.
+     * @return bool True if IP should be included.
      */
-    function getClientIP() {
-        $headers = [
-            'HTTP_CLIENT_IP', 
-            'HTTP_X_FORWARDED_FOR', 
-            'HTTP_X_FORWARDED', 
-            'HTTP_X_CLUSTER_CLIENT_IP', 
-            'HTTP_FORWARDED_FOR', 
-            'HTTP_FORWARDED', 
-            'REMOTE_ADDR'
-        ];
-    
-        foreach ($headers as $header) {
-            if (isset($_SERVER[$header])) {
-                $ip_list = explode(',', $_SERVER[$header]);
-                return trim(end($ip_list)); // Return the last IP in the list
+    private function needsIP(array $record): bool
+    {
+        return in_array('IP', $this->csvColumns, true) || array_key_exists('IP', $record);
+    }
+
+    /**
+     * Whether to include Browser/OS in the current record.
+     *
+     * @param array<string,mixed> $record Current record.
+     * @return bool True if Browser/OS should be included.
+     */
+    private function needsUAOS(array $record): bool
+    {
+        $need = (in_array('Browser', $this->csvColumns, true) && in_array('OS', $this->csvColumns, true));
+        return $need || (isset($record['Browser']) && isset($record['OS']));
+    }
+
+    /**
+     * Append a line to a file with locking.
+     *
+     * @param string $file Target file.
+     * @param string $line Line to append (may include newline).
+     * @return void
+     *
+     * @throws RuntimeException On write failure.
+     */
+    private function appendLine(string $file, string $line): void
+    {
+        $fh = fopen($file, 'ab');
+        if ($fh === false) {
+            throw new RuntimeException(sprintf($this->errorMessages['writeFailed'], $file));
+        }
+        try {
+            if (!flock($fh, LOCK_EX)) {
+                throw new RuntimeException(sprintf($this->errorMessages['writeFailed'], $file));
+            }
+            fwrite($fh, $line);
+        } finally {
+            flock($fh, LOCK_UN);
+            fclose($fh);
+        }
+    }
+
+    /**
+     * Build a CSV/TSV row honoring configured columns.
+     *
+     * @param array<string,mixed> $record Record data.
+     * @return array<int,mixed> Ordered values for CSV/TSV row.
+     */
+    private function rowForCsv(array $record): array
+    {
+        if (!empty($this->csvColumns)) {
+            $row = [];
+            foreach ($this->prepareHeaderColumns() as $col) {
+                if ($col === 'Timestamp') {
+                    $row[] = date($this->timestampFormat);
+                } else {
+                    $val = $record[$col] ?? '';
+                    $row[] = is_scalar($val) ? $val : json_encode($val, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                }
+            }
+            return $row;
+        }
+        $flat = [date($this->timestampFormat)];
+        foreach ($record as $v) {
+            $flat[] = is_scalar($v) ? $v : json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        }
+        return $flat;
+    }
+
+    /**
+     * Prepare header columns for CSV/TSV, ensuring "Timestamp" is first.
+     *
+     * @return string[] Column names.
+     */
+    private function prepareHeaderColumns(): array
+    {
+        $cols = $this->csvColumns;
+        if (!in_array('Timestamp', $cols, true)) {
+            array_unshift($cols, 'Timestamp');
+        }
+        return $cols;
+    }
+
+    /**
+     * Write CSV/TSV header to a new/rotated file.
+     *
+     * @param string $file      Target file.
+     * @param string $delimiter CSV: ","  TSV: "\t".
+     * @return void
+     */
+    private function writeCsvHeader(string $file, string $delimiter): void
+    {
+        $fh = fopen($file, 'ab');
+        if ($fh) {
+            try {
+                if (flock($fh, LOCK_EX)) {
+                    fputcsv($fh, $this->prepareHeaderColumns(), $delimiter, '"');
+                }
+            } finally {
+                flock($fh, LOCK_UN);
+                fclose($fh);
             }
         }
-    
-        return 'UNKNOWN';
     }
 
     /**
-     * Rotates the logs based on the criteria mentioned.
+     * Rotate active log when size/week/weekday criteria match.
+     *
+     * @return void
      */
-    private function rotateLogs()
+    private function maybeRotate(): void
     {
-        $currentWeek = (int) date('W');
-        $currentYear = date('Y');
-        $baseLogName = $this->file . ' ' . self::LOG_PREFIX . ' ' . $currentWeek . ' ' . $currentYear;
+        $currentWeek = (int)date('W');
+        $today = date('l');
+        $sizeExceeded = @filesize($this->file) !== false && filesize($this->file) >= self::MAX_LOG_SIZE;
+        $weekdayHit   = (self::ROTATE_DAY && $today === self::ROTATE_DAY && $this->lastRotationWeek !== $currentWeek);
+        $weekChanged  = ($this->lastRotationWeek !== $currentWeek);
 
-        // Check if we need to rotate based on the week or size
-        if ($this->lastRotationWeek !== $currentWeek || (filesize($this->file) >= self::MAX_LOG_SIZE && $this->lastRotationWeek === $currentWeek)) {
-            $logName = $this->getNextLogFilename($baseLogName);
-
-            rename($this->file, $logName);
-            touch($this->file);
-
-            // If CSV, write the header again
-            if ($this->fileType === 'csv' && !empty($this->csvColumns)) {
-                $file = fopen($this->file, 'a');
-                fputcsv($file, $this->csvColumns);
-                fclose($file);
+        if ($sizeExceeded || $weekdayHit || $weekChanged) {
+            $rotated = $this->buildRotatedName($this->file, $currentWeek, date('Y'));
+            @rename($this->file, $rotated);
+            @touch($this->file);
+            if (($this->fileType === self::FORMAT_CSV || $this->fileType === self::FORMAT_TSV) && !empty($this->csvColumns)) {
+                $this->writeCsvHeader($this->file, $this->fileType === self::FORMAT_CSV ? ',' : "\t");
             }
-
+            if (self::ENABLE_GZIP && file_exists($rotated)) {
+                $this->gzipFile($rotated);
+            }
             $this->lastRotationWeek = $currentWeek;
         }
     }
 
     /**
-     * Get the next available log filename based on the base log name.
-     * 
-     * @param string $baseLogName Base log name
-     * @return string Next available log filename
+     * Build a unique filename for a rotated log.
+     *
+     * @param string $file Base file path.
+     * @param int    $week ISO week number.
+     * @param string $year Year string.
+     * @return string Rotated filename.
      */
-    private function getNextLogFilename($baseLogName)
+    private function buildRotatedName(string $file, int $week, string $year): string
     {
+        $dir = dirname($file);
+        $base = basename($file);
+        $ext = pathinfo($file, PATHINFO_EXTENSION);
+        $name = preg_replace('/\.' . preg_quote($ext, '/') . '$/', '', $base);
         $counter = 1;
-        $logName = $baseLogName . ' ' . $counter;
-
-        while (file_exists($logName)) {
+        do {
+            $candidate = sprintf('%s/%s %s-%d-%s.%d.%s', $dir, $name, self::LOG_PREFIX, $week, $year, $counter, $ext);
             $counter++;
-            $logName = $baseLogName . ' ' . $counter;
-        }
-        return $logName;
+        } while (file_exists($candidate));
+        return $candidate;
     }
 
     /**
-     * Cleanup old logs based on the criteria mentioned.
+     * Gzip a rotated file and remove the original.
+     *
+     * @param string $path Absolute path of the rotated file.
+     * @return void
      */
-    private function cleanupOldLogs()
+    private function gzipFile(string $path): void
     {
-        $logFiles = glob($this->file . ' ' . self::LOG_PREFIX . '*');
-        usort($logFiles, function ($a, $b) {
-            return filemtime($a) < filemtime($b);
-        });
+        $gz = gzopen($path . '.gz', 'wb9');
+        if ($gz) {
+            $in = fopen($path, 'rb');
+            while (!feof($in)) {
+                gzwrite($gz, fread($in, 8192));
+            }
+            fclose($in);
+            gzclose($gz);
+            @unlink($path);
+        }
+    }
 
+    /**
+     * Delete rotated files exceeding MAX_LOG_DURATION.
+     *
+     * @return void
+     */
+    private function cleanupOldLogs(): void
+    {
+        $dir = dirname($this->file);
+        $name = basename($this->file);
+        $pattern = sprintf('%s/%s %s-*', $dir, preg_replace('/\.[^.]+$/', '', $name), self::LOG_PREFIX);
+        $logFiles = glob($pattern) ?: [];
+        if (!$logFiles) return;
+
+        usort($logFiles, static function (string $a, string $b): int {
+            return (@filemtime($a) ?: 0) <=> (@filemtime($b) ?: 0);
+        }); // oldest first
 
         while (count($logFiles) > self::MAX_LOG_DURATION) {
-            $fileToDelete = array_pop($logFiles);
-            unlink($fileToDelete);
+            $fileToDelete = array_shift($logFiles);
+            @unlink($fileToDelete);
+            if (file_exists($fileToDelete . '.gz')) {
+                @unlink($fileToDelete . '.gz');
+            }
         }
+    }
+
+    /**
+     * Parse browser and OS from a user agent string.
+     *
+     * @param string $ua User agent string.
+     * @return array{0:string,1:string} [browser, os].
+     */
+    private function parseUAOS(string $ua): array
+    {
+        if ($ua === '') return ['CLI/Unknown', 'Unknown'];
+
+        $browser = match (true) {
+            str_contains($ua, 'Firefox')                                 => 'Firefox',
+            str_contains($ua, 'Chrome') && !str_contains($ua, 'Chromium') => 'Chrome',
+            str_contains($ua, 'Safari') && !str_contains($ua, 'Chrome')   => 'Safari',
+            str_contains($ua, 'MSIE') || str_contains($ua, 'Trident')     => 'Internet Explorer',
+            default                                                       => 'Others',
+        };
+
+        $os = match (true) {
+            str_contains($ua, 'Windows NT')                      => 'Windows',
+            str_contains($ua, 'Mac OS X')                        => 'MacOS',
+            str_contains($ua, 'Linux')                           => 'Linux',
+            str_contains($ua, 'iPhone') || str_contains($ua, 'iPad') => 'iOS',
+            str_contains($ua, 'Android')                         => 'Android',
+            default                                              => 'Others',
+        };
+
+        return [$browser, $os];
+    }
+
+    /**
+     * Resolve public-looking client IP from common proxy headers.
+     *
+     * @return string IP address or 'UNKNOWN'.
+     */
+    public function getClientIP(): string
+    {
+        $keys = ['HTTP_X_FORWARDED_FOR', 'HTTP_CLIENT_IP', 'HTTP_X_FORWARDED', 'HTTP_X_CLUSTER_CLIENT_IP', 'HTTP_FORWARDED_FOR', 'HTTP_FORWARDED', 'REMOTE_ADDR'];
+        $candidates = [];
+        foreach ($keys as $k) {
+            if (!empty($_SERVER[$k])) {
+                foreach (explode(',', $_SERVER[$k]) as $ip) {
+                    $ip = trim($ip);
+                    if ($ip !== '') $candidates[] = $ip;
+                }
+            }
+        }
+        foreach ($candidates as $ip) {
+            if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) return $ip;
+        }
+        return $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN';
+    }
+
+    /**
+     * Infer format from filename extension; defaults to txt.
+     *
+     * @param string $ext Extension without dot.
+     * @return string One of self::FORMAT_* constants.
+     */
+    private function inferFormatFromExtension(string $ext): string
+    {
+        return match (strtolower($ext)) {
+            'csv'   => self::FORMAT_CSV,
+            'tsv'   => self::FORMAT_TSV,
+            'jsonl' => self::FORMAT_JSONL,
+            default => self::FORMAT_TXT,
+        };
     }
 }

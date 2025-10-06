@@ -1,103 +1,126 @@
-![LogLeaf Logo](https://raw.githubusercontent.com/wera-as/LogLeaf/fdb8945c5ea09841bd5826fb7fab80dbfb312d06/img/logleaf_logo.svg)
+# LogLeaf
 
-LogLeaf is a versatile and adaptable PHP class designed to log file download events to either a text (.txt), a comma-separated value (.csv) and a tab-separated value(.tsv) file. With each download event, the Logger generates a timestamped entry. Additionally, it can capture IP addresses, browser details, and operating system information. The Logger supports PHP 5.6 and onwards, and offers enhanced error customization.
-
-## Features
+LogLeaf is a lightweight, modular PHP logging class supporting multiple output formats — **TXT**, **CSV**, **TSV**, and **JSONL** — with optional IP, browser, and OS detection. Version 2.0 introduces native support for **PHP 5.6 → 8.3+**, automatic log rotation, and enhanced file handling and structure.
 
 
-- Automatic log rotation based on both time and file size. Logs are named using a pattern like `Week 22 2023 2` where the last number increments if a log file for that week already exists. Logs are retained for a maximum of 3 months by default.
-- Customize the log file path as per your needs.
-- Log to a text (.txt), CSV (.csv) and TSV(.tsv) file.
-- Set a custom timestamp format to fit your application's requirements.
-- Append new log entries with accurate timestamps for chronological tracking.
-- Retrieve all log entries for review or analysis.
-- Define custom CSV column names when logging to a CSV or TSV file.
-- Optionally log IP addresses of users downloading files using an improved IP detection mechanism that accounts for proxies and load balancers.
-- Capture browser and operating system details for each download event.
-- Define custom error messages for specific scenarios to better suit your application's requirements.
 
-## Requirements
+## ✨ Features
 
-- PHP 5.6 or higher.
+* **Automatic log rotation** by week or file size, retaining logs for up to 12 rotations (≈3 months).
+* **Multi-format output:** write to `.txt`, `.csv`, `.tsv`, or `.jsonl` files.
+* **Custom timestamp format** via `setTimestampFormat()`.
+* **Accurate IP detection**, including proxies and load balancers.
+* **Browser/OS parsing** via native user-agent analysis.
+* **Customizable CSV/TSV columns** — `Timestamp` is auto-added if missing.
+* **Custom error message definitions** using the `define()` method.
+* **Optional GZIP compression** for rotated logs.
+* **Thread-safe file writes** with locking.
 
-## Installation
 
-To install LogLeaf:
 
-1. Clone this repository or download the Logger file (`php56/LogLeaf.php` for PHP 5.6, `php70/LogLeaf.php` for PHP 7.0+):
+## 🧩 Requirements
+
+* PHP **5.6 or higher** (fully compatible with PHP 8.3+)
+
+
+
+## ⚙️ Installation
+
+Clone or download the repository:
 
 ```bash
 git clone https://github.com/wera-as/LogLeaf.git
 ```
 
-2. Include the Logger file in your PHP script:
-
-For PHP 5.6:
+Then include the version matching your PHP environment:
 
 ```php
+// PHP 5.6
 include_once 'php56/LogLeaf.php';
-```
 
-For PHP 7.0+:
-
-```php
+// PHP 7.0+
 include_once 'php70/LogLeaf.php';
-```
 
-For PHP 8.3:
-
-```php
+// PHP 8.3+
 include_once 'php83/LogLeaf.php';
 ```
 
-## Usage
 
-Instantiate the LogLeaf class with your log file's name, file type (either 'txt' or 'csv'), and, if desired, specify the timestamp format, CSV columns, and flags for IP and Browser/OS logging.
 
-For TXT logging:
+## 🚀 Usage
 
-```php
-$loggerTxt = new LogLeaf("downloads.txt", 'txt', 'Y-m-d H:i:s', [], true, true);
-```
-
-For CSV logging:
+### Basic Example (TXT)
 
 ```php
-$csvColumns = ['Timestamp', 'IP', 'Browser', 'OS', 'File'];
-$loggerCsv = new LogLeaf("downloads.csv", 'csv', 'Y-m-d H:i:s', $csvColumns, true, true);
-```
-
-If a custom timestamp format is required, set it using the setTimestampFormat method:
-
-```php
-$logger->setTimestampFormat('Y-m-d H:i:s'); // Optional, 'Y-m-d H:i:s' is the default
-```
-
-When a file is downloaded, log the event using the putLog method:
-
-```php
+$logger = new LogLeaf('downloads.txt', 'txt', 'Y-m-d H:i:s', [], true, true);
 $logger->putLog('File abc.jpg has been downloaded');
 ```
 
-Retrieve all log entries as a string using the getLog method:
+### CSV Example with Columns
 
 ```php
-echo $logger->getLog(); // Output all logs
+$columns = ['Timestamp', 'IP', 'Browser', 'OS', 'File'];
+$logger = new LogLeaf('downloads.csv', 'csv', 'Y-m-d H:i:s', $columns, true, true);
+$logger->putLog(['File' => 'report.pdf']);
 ```
 
-## Errors and Exceptions
+### JSONL Example (v2.0+)
 
-The Logger class will throw exceptions in the following scenarios:
+```php
+$logger = new LogLeaf('logs.jsonl', 'jsonl');
+$logger->info('Process completed successfully', ['module' => 'sync']);
+```
 
-- Inability to read or write to the log file.
-- Providing an empty file name.
-- Mismatch between data provided in the `putLog` method and the specified CSV columns.
-- Allows users to define custom error messages for specific error scenarios, offering a more tailored logging experience.
 
-## Contributing
 
-Your contributions are always welcome! Feel free to fork this project and submit enhancements via a pull request.
+## 🕒 Reading Logs
 
-## License
+```php
+echo $logger->getLog(); // Returns entire log as a string
+```
 
-LogLeaf is open-source software under the MIT license.
+Retrieve the last N lines efficiently:
+
+```php
+echo $logger->tail(100); // Returns the last 100 lines
+```
+
+
+
+## ⚠️ Error Handling
+
+Exceptions are thrown if:
+
+* Log file or directory is unwritable.
+* Unsupported file extension or format.
+* File read/write failure occurs.
+
+Define custom error messages:
+
+```php
+$logger->define('writeFailed', 'Cannot write to the log — check permissions.');
+```
+
+
+
+## 🧰 Version Highlights (2.0.0)
+
+* Unified codebase across PHP 5.6–8.3.
+* Added **JSONL** structured logging support.
+* Introduced **readonly properties** for immutability in PHP 8.3 build.
+* Enhanced file creation logic (auto-creates missing logs).
+* Simplified constructor signature and validation.
+* Optimized tail-reading and CSV row construction.
+* Improved rotation naming consistency.
+
+
+
+## 🤝 Contributing
+
+Contributions are welcome! Fork the repo, submit PRs, or open issues for feature suggestions.
+
+
+
+## 📜 License
+
+**MIT License** — © 2025 [Wera AS](https://github.com/wera-as)
