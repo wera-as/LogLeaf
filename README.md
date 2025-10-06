@@ -38,8 +38,8 @@ Then include the version matching your PHP environment:
 // PHP 5.6
 include_once 'php56/LogLeaf.php';
 
-// PHP 7.0+
-include_once 'php70/LogLeaf.php';
+// PHP 7.4+
+include_once 'php74/LogLeaf.php';
 
 // PHP 8.3+
 include_once 'php83/LogLeaf.php';
